@@ -1,0 +1,82 @@
+Type,Tipo
+is Offer,es Oferta
+Total Qty,Cantidad Total
+Customer,Cliente
+Items Group,Grupo de Artículos
+Search Items,Buscar Artículos
+Additional Discount,Descuento Adicional
+Items Discounts,Descuentos de Artículos
+HOLD,EN ESPERA
+Hold,En Espera
+RETURN,DEVOLUCIÓN
+Return,Devolución
+CANCEL,CANCELAR
+NEW,NUEVO
+PAY,PAGAR
+Order,Orden
+Available QTY,Cantidad Disponible
+QTY,Cantidad
+Discount Percentage,Porcentaje de Descuento
+Price list Rate,Tarifa de Lista de Precios
+Group,Grupo
+Stock QTY,Cantidad en Stock
+Stock UOM,Unidad de Medida de Stock
+Card,Tarjeta
+Offers,Ofertas
+Applied,Aplicadas
+There is no Customer !,No hay Cliente !
+There is no Items !,No hay Artículos !
+The existing quantity of item {0} is not enough,La cantidad existente del artículo {0} no es suficiente
+Maximum discount for Item {0} is {1}%,Descuento máximo para el artículo {0} es {1}%
+Selected serial numbers of item {0} is incorrect,Los números de serie seleccionados del artículo {0} son incorrectos
+The existing batch quantity of item {0} is not enough,La cantidad existente del lote del artículo {0} no es suficiente
+The discount should not be higher than {0}%,El descuento no debe ser mayor que {0}%
+Return Invoice Total Not Correct,Total de la Factura de Devolución Incorrecto
+Return Invoice Total should not be higher than {0},El total de la factura de devolución no debe ser mayor que {0}
+The item {0} cannot be returned because it is not in the invoice {1},El artículo {0} no puede devolverse porque no está en la factura {1}
+The QTY of the item {0} cannot be greater than {1},La cantidad del artículo {0} no puede ser mayor que {1}
+Selected Serial No QTY is {0} it should be {1},La cantidad de serie seleccionada es {0} debería ser {1}
+Loyalty Point Offer Applied,Oferta de Puntos de Fidelidad Aplicada
+Loyalty Points,Puntos de Fidelidad
+Paid Amount,Cantidad Pagada
+To Be Paid,A Pagar
+Cash,Efectivo
+Tax and Charges,Impuestos y Cargos
+Discount Amount,Cantidad de Descuento
+Total Amount,Cantidad Total
+Totoal Amount,Cantidad Total
+Grand Amount,Cantidad Final
+Back,Volver
+Submit Payments,Registrar Pagos
+Give Item,Entregar Artículo
+New Offer Available,Nueva Oferta Disponible
+POS Offers,Ofertas POS
+Customer contact created successfully.,Contacto del cliente creado con éxito.
+Customer Address created successfully.,Dirección del cliente creada con éxito.
+Customer contact updated successfully.,Contacto del cliente actualizado con éxito.
+Offer,Oferta
+Apply On,Aplicar En
+Offer Applied,Oferta Aplicada
+Opening Amount,Cantidad de Apertura
+Closing Amount,Cantidad de Cierre
+Expected Amount,Cantidad Esperada
+Difference,Diferencia
+Close,Cerrar
+Submit,Enviar
+Closing POS Shift,Cerrando Turno POS
+Select Hold Invoice,Seleccionar Factura en Espera
+Customer Info,Información del Cliente
+Add New Address,Agregar Nueva Dirección
+New Customer,Nuevo Cliente
+Create POS Opening Shift,Crear Turno de Apertura POS
+Select Return Invoice,Seleccionar Factura de Devolución
+Close Shift,Cerrar Turno
+Pages,Páginas
+Customer not found,Cliente no encontrado
+Customer Name,Nombre del Cliente
+Batch No Available QTY,Cantidad Disponible del Lote
+Batch No Expiry Date,Fecha de Vencimiento del Lote
+Batch No,Número de Lote
+Use Customer Credit,Usar Crédito del Cliente
+Is Credit Sale,Es Venta a Crédito
+Due Date,Fecha de Vencimiento
