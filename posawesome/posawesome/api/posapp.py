@@ -411,7 +411,8 @@ def get_items(
                 "has_batch_no",
                 "has_serial_no",
                 "max_discount",
-                "brand"
+                "brand",
+                "custom_oem_part_number" 
             ],
             limit_start=limit_start,
             limit_page_length=limit_page_length,
@@ -1295,6 +1296,8 @@ def get_items_details(pos_profile, items_data, price_list=None):
             for item in items_data:
                 item_code = item.get("item_code")
 
+                custom_oem_part_number = frappe.db.get_value("Item", item_code, "custom_oem_part_number")
+
                 item_stock_qty = get_stock_availability(item_code, warehouse)
                 (has_batch_no, has_serial_no) = frappe.db.get_value(
                     "Item", item_code, ["has_batch_no", "has_serial_no"]
@@ -1372,6 +1375,7 @@ def get_items_details(pos_profile, items_data, price_list=None):
                         "currency": item_price.get("currency")
                         or price_list_currency
                         or pos_profile.get("currency"),
+                        "custom_oem_part_number": custom_oem_part_number or ""
                     }
                 )
 
@@ -1456,6 +1460,8 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None):
             uoms.append({"uom": stock_uom, "conversion_factor": 1.0})
     
     res["item_uoms"] = uoms
+    oem_part_number = frappe.get_value("Item", item_code, "custom_oem_part_number")
+    res["custom_oem_part_number"] = oem_part_number or ""
     
     return res
 
@@ -2530,6 +2536,46 @@ def get_sales_invoice_child_table(sales_invoice, sales_invoice_item):
         "Sales Invoice Item", {"parent": parent_doc.name, "name": sales_invoice_item}
     )
     return child_doc
+
+@frappe.whitelist()
+def search_product_bundle(search_term, pos_profile=None):
+    """Search for product bundles by search term"""
+    try:
+        if not search_term:
+            return []
+            
+        # Parse pos_profile if it's a string
+        if isinstance(pos_profile, str):
+            pos_profile = json.loads(pos_profile)
+        
+        # Search for product bundles that match the search term
+        bundles = frappe.db.sql("""
+            SELECT 
+                pb.name,
+                pb.new_item_code as item_code,
+                pb.description,
+                i.item_name,
+                i.custom_oem_part_number
+            FROM `tabProduct Bundle` pb
+            INNER JOIN `tabItem` i ON i.name = pb.new_item_code
+            WHERE pb.disabled = 0
+            AND (
+                pb.new_item_code LIKE %(search_term)s
+                OR pb.name LIKE %(search_term)s
+                OR i.item_name LIKE %(search_term)s
+                OR i.custom_oem_part_number LIKE %(search_term)s
+            )
+            ORDER BY pb.name
+            LIMIT 10
+        """, {
+            'search_term': f"%{search_term}%"
+        }, as_dict=True)
+        
+        return bundles
+        
+    except Exception as e:
+        frappe.log_error(f"Error searching product bundle for {search_term}: {str(e)}")
+        return []
 
 @frappe.whitelist()
 def update_invoice_from_order(data):

@@ -269,6 +269,8 @@ fixtures = [
                     "Sales Invoice-custom_reference_no",
                     "POS Profile-posa_allow_multi_currency",
                     "POS Profile-posa_decimal_precision",
+                    "POS Profile-custom_show_oem_part_number",
+                    "Item-custom_oem_part_number",
                 ),
             ]
         ],
