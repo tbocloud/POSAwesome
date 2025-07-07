@@ -2532,45 +2532,6 @@ def get_sales_invoice_child_table(sales_invoice, sales_invoice_item):
     return child_doc
 
 @frappe.whitelist()
-def search_product_bundle(search_term, pos_profile=None):
-    """Search for product bundles by search term"""
-    try:
-        if not search_term:
-            return []
-            
-        # Parse pos_profile if it's a string
-        if isinstance(pos_profile, str):
-            pos_profile = json.loads(pos_profile)
-        
-        # Search for product bundles that match the search term
-        bundles = frappe.db.sql("""
-            SELECT 
-                pb.name,
-                pb.new_item_code as item_code,
-                pb.description,
-                i.item_name
-            FROM `tabProduct Bundle` pb
-            INNER JOIN `tabItem` i ON i.name = pb.new_item_code
-            WHERE pb.disabled = 0
-            AND (
-                pb.new_item_code LIKE %(search_term)s
-                OR pb.name LIKE %(search_term)s
-                OR i.item_name LIKE %(search_term)s
-                OR i.custom_oem_part_number LIKE %(search_term)s
-            )
-            ORDER BY pb.name
-            LIMIT 10
-        """, {
-            'search_term': f"%{search_term}%"
-        }, as_dict=True)
-        
-        return bundles
-        
-    except Exception as e:
-        frappe.log_error(f"Error searching product bundle for {search_term}: {str(e)}")
-        return []
-
-@frappe.whitelist()
 def update_invoice_from_order(data):
      data = json.loads(data)
      invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
