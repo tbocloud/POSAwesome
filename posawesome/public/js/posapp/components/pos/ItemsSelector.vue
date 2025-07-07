@@ -323,7 +323,113 @@ export default {
     /**
      * Unified method to handle barcode search from both manual input and scanning
      */
-    handleBarcodeSearch(searchValue = null, isScanned = false) {
+
+  async handleProductBundleSearch(searchValue) {
+  if (!searchValue || searchValue.trim() === '') {
+    console.warn('No search value provided for product bundle search');
+    return false;
+  }
+
+  console.log(`Searching for product bundle: ${searchValue}`);
+
+  try {
+    // First, check if the search term matches any item that might be a product bundle
+    const potentialBundleItem = this.items.find(item => 
+      item.item_code === searchValue || 
+      item.item_code.toLowerCase() === searchValue.toLowerCase() ||
+      item.item_name.toLowerCase().includes(searchValue.toLowerCase())
+    );
+
+    if (potentialBundleItem) {
+      console.log('Found potential bundle item:', potentialBundleItem);
+      
+      // Check if this item has a product bundle
+      const bundleResult = await this.processProductBundle(potentialBundleItem.item_code, this.qty || 1);
+      
+      if (bundleResult) {
+        // Bundle was processed successfully
+        this.clearSearchForm();
+        
+        frappe.show_alert({
+          message: `Product bundle added: ${potentialBundleItem.item_name}`,
+          indicator: 'green'
+        }, 3);
+        
+        return true;
+      } else {
+        // Not a bundle, treat as regular item
+        console.log('Item is not a product bundle, adding as regular item');
+        this.addItemFromSearch(potentialBundleItem, searchValue);
+        return true;
+      }
+    } else {
+      // Try direct product bundle search via API
+      return await this.searchAndAddProductBundle(searchValue);
+    }
+    
+  } catch (error) {
+    console.error('Error in product bundle search:', error);
+    this.eventBus.emit("show_message", {
+      title: `Error searching for product bundle: ${error.message}`,
+      color: "error",
+    });
+    return false;
+  }
+},
+
+async searchAndAddProductBundle(searchTerm) {
+  try {
+    console.log(`Searching for product bundle via API: ${searchTerm}`);
+    
+   
+
+    const response = await new Promise((resolve, reject) => {
+      frappe.call({
+        method: "posawesome.posawesome.api.posapp.search_product_bundle",
+        args: {
+          search_term: searchTerm,
+          pos_profile: this.pos_profile
+        },
+        callback: function(r) {
+          resolve(r);
+        },
+        error: function(err) {
+          reject(err);
+        }
+      });
+    });
+
+    if (response.message && response.message.length > 0) {
+      const bundle = response.message[0]; // Take the first match
+      console.log('Found product bundle via API:', bundle);
+      
+      // Process the found bundle
+      const bundleResult = await this.processProductBundle(bundle.item_code, this.qty || 1);
+      
+      if (bundleResult) {
+        this.clearSearchForm();
+        
+        frappe.show_alert({
+          message: `Product bundle added: ${bundle.name}`,
+          indicator: 'green'
+        }, 3);
+        
+        return true;
+      }
+    }
+    
+    console.log(`No product bundle found for: ${searchTerm}`);
+    return false;
+    
+  } catch (error) {
+    console.error('Error searching product bundle via API:', error);
+    // Don't show error message here, let the calling function handle it
+    return false;
+  }
+},
+
+    
+    async handleBarcodeSearch(searchValue = null, isScanned = false) {
       // Use provided value or get from search field
       const barcodeValue = searchValue || this.first_search || this.search;
       
@@ -347,6 +453,15 @@ export default {
         }, 2);
       }
 
+      if (this.pos_profile.custom_product_bundle) {
+    console.log('Product bundle enabled, checking for bundles first...');
+    
+    const bundleFound = await this.handleProductBundleSearch(barcodeValue);
+    if (bundleFound) {
+      return; // Bundle was found and processed, exit early
+    }
+  }
+
       // First, try to find exact barcode match
       let foundItem = this.findItemByBarcode(barcodeValue);
 
@@ -366,7 +481,7 @@ export default {
         console.log('Found item by item code match:', foundItem);
         this.addItemFromSearch(foundItem, barcodeValue);
         return;
-      }
+    }
 
       // For scale barcodes (if configured)
       if (this.pos_profile.posa_scale_barcode_start && 
@@ -415,7 +530,7 @@ export default {
       } else {
         // No item found
         this.handleItemNotFound(barcodeValue, isScanned);
-      }
+  }
     },
 
     findItemByBarcode(barcode) {
@@ -717,11 +832,7 @@ export default {
     if (product_bundle && product_bundle.items && Array.isArray(product_bundle.items)) {
       console.log('Product bundle found:', product_bundle);
       
-      // Show loading message
-      this.eventBus.emit("show_message", {
-        title: `Processing product bundle: ${product_bundle.name}`,
-        color: "info",
-      });
+      
       
       let allItemsAdded = true;
       let addedCount = 0;
@@ -801,10 +912,7 @@ export default {
     
   } catch (error) {
     console.error('Error processing product bundle:', error);
-    this.eventBus.emit("show_message", {
-      title: `Failed to process product bundle: ${error.message}`,
-      color: "error",
-    });
+    
     return false;
   }
     },
@@ -1754,16 +1862,16 @@ export default {
 
           if (filtred_list.length === 0) {
             // Fallback to partial fuzzy match on name
-            const search_combinations = this.generateWordCombinations(this.search);
-            filtred_list = filtred_group_list.filter(item => {
-              const nameLower = item.item_name.toLowerCase();
+          const search_combinations = this.generateWordCombinations(this.search);
+          filtred_list = filtred_group_list.filter(item => {
+            const nameLower = item.item_name.toLowerCase();
               return search_combinations.some(element => {
-                element = element.toLowerCase().trim();
-                const element_regex = new RegExp(`.*${element.split('').join('.*')}.*`);
-                return element_regex.test(nameLower);
-              });
+              element = element.toLowerCase().trim();
+              const element_regex = new RegExp(`.*${element.split('').join('.*')}.*`);
+              return element_regex.test(nameLower);
             });
-          }
+          });
+        }
 
           if (
             filtred_list.length === 0 &&
