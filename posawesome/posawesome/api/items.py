@@ -320,7 +320,7 @@ def get_items(
                     fields=["barcode", "posa_uom"],
                 )
                 batch_no_data = []
-                if search_batch_no:
+                if search_batch_no or item.has_batch_no:
                     batch_list = get_batch_qty(warehouse=warehouse, item_code=item_code)
                     if batch_list:
                         for batch in batch_list:

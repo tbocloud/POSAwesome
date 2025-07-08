@@ -26,7 +26,7 @@ def get_latest_rate(from_currency: str, to_currency: str):
         "Currency Exchange",
         filters={"from_currency": from_currency, "to_currency": to_currency},
         fields=["exchange_rate", "date"],
-        order_by="date desc",
+        order_by="date desc, creation desc",
         limit=1,
     )
     if rate_doc:
