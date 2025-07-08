@@ -93,6 +93,7 @@ export default {
 
     // Reactively update item prices when currency changes
     selected_currency() {
+      clearPriceListCache();
       if (this.items && this.items.length) {
         this.update_item_rates();
       }

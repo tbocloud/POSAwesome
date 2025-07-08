@@ -147,4 +147,4 @@ DocType: POS Offer,Valid Upto,Valido Até
 DocType: POS Offer,Warehouse,Armazém
 apps/posawesome/posawesome/posawesome/page/posapp/posapp.js,is Offer,é Oferta
 apps/posawesome/posawesome/posawesome/page/posapp/posapp.js,Type,Tipo
-apps/posawesome/posawesome/posawesome/page/posapp/posapp.js,Total Qty,Qtd Total
+apps/posawesome/posawesome/posawesome/page/posapp/posapp.js,Total Qty,Qtd TotalCustom Field - label: POS Profile-posa_create_only_sales_order,Create Only Sales Order,Criar Apenas Ordem de Venda

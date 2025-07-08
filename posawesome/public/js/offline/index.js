@@ -2,10 +2,10 @@
 
 // Core exports
 export {
-        db,
-        initPromise,
-        persist,
-        addToPersistQueue
+	db,
+	initPromise,
+	persist,
+	addToPersistQueue
 } from './core.js';
 
 // Cache exports
@@ -27,7 +27,9 @@ export {
 	isManualOffline,
 	setManualOffline,
 	toggleManualOffline,
-	resetOfflineState
+	resetOfflineState,
+	clearAllCache,
+	getCacheUsageEstimate
 } from './cache.js';
 
 // Stock exports

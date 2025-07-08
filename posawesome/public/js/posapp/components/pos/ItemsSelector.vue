@@ -69,6 +69,9 @@
             <div fluid class="items-grid dynamic-scroll" ref="itemsContainer" v-if="items_view == 'card'"
               :style="{ maxHeight: 'calc(' + responsiveStyles['--container-height'] + ' - 80px)' }">
               <v-card v-for="item in filtered_items" :key="item.item_code" hover class="dynamic-item-card"
+                :draggable="true"
+                @dragstart="onDragStart($event, item)"
+                @dragend="onDragEnd"
                 @click="add_item(item)">
                 <v-img :src="item.image ||
                         '/assets/posawesome/js/posapp/components/pos/placeholder-image.png'
@@ -100,6 +103,7 @@
               <v-data-table-virtual :headers="headers" :items="filtered_items" class="sleek-data-table overflow-y-auto"
                 :style="{ maxHeight: 'calc(' + responsiveStyles['--container-height'] + ' - 80px)' }"
                 item-key="item_code" @click:row="click_item_row">
+
                 <template v-slot:item.rate="{ item }">
                   <div>
                     <div class="text-primary">{{ currencySymbol(item.original_currency || pos_profile.currency) }}
@@ -114,9 +118,6 @@
                     </div>
                   </div>
                 </template>
-                <template v-slot:item.custom_oem_part_number="{ item }">
-                <span class="text-info">{{ item.custom_oem_part_number || '-' }}</span>
-              </template>
                 <template v-slot:item.actual_qty="{ item }">
                   <span class="golden--text">{{ format_number(item.actual_qty, hide_qty_decimals ? 0 : 4) }}</span>
                 </template>
@@ -221,6 +222,9 @@ export default {
     temp_hide_qty_decimals: false,
     hide_zero_rate_items: false,
     temp_hide_zero_rate_items: false,
+    isDragging: false,
+    // Track if the current search was triggered by a scanner
+    search_from_scanner: false,
   }),
 
   watch: {
@@ -304,12 +308,12 @@ export default {
         this.update_items_details(new_value);
       }
     },
-    // Auto-trigger search when limit search is enabled and the query changes
+    // Automatically search and add item whenever the query changes
     first_search: _.debounce(function (val) {
-      if (this.pos_profile && this.pos_profile.pose_use_limit_search) {
-        this.search_onchange(val);
-      }
+      // Call without arguments so search_onchange treats it like an Enter key
+      this.search_onchange();
     }, 300),
+
     // Refresh item prices whenever the user changes currency
     selected_currency() {
       this.applyCurrencyConversionToItems();
@@ -1228,34 +1232,22 @@ async searchAndAddProductBundle(searchTerm) {
     },
     getItemsHeaders() {
       const items_headers = [
-  {
-    title: __("Name"),
-    align: "start",
-    sortable: true,
-    key: "item_name",
-  },
-  {
-    title: __("Code"),
-    align: "start",
-    sortable: true,
-    key: "item_code",
-  },
-  
-  { title: __("Rate"), key: "rate", align: "start" },
-  { title: __("Available QTY"), key: "actual_qty", align: "start" },
-  { title: __("UOM"), key: "stock_uom", align: "start" },
-];
-
-    // // Conditionally add OEM Part No column
-    if (this.pos_profile && this.pos_profile.custom_show_oem_part_number) {
-      items_headers.push({
-        title: __("OEM Part No"),
-        align: "start",
-        sortable: true,
-        key: "custom_oem_part_number",
-      });
-    }
-
+        {
+          title: __("Name"),
+          align: "start",
+          sortable: true,
+          key: "item_name",
+        },
+        {
+          title: __("Code"),
+          align: "start",
+          sortable: true,
+          key: "item_code",
+        },
+        { title: __("Rate"), key: "rate", align: "start" },
+        { title: __("Available QTY"), key: "actual_qty", align: "start" },
+        { title: __("UOM"), key: "stock_uom", align: "start" },
+      ];
       if (!this.pos_profile.posa_display_item_code) {
         items_headers.splice(1, 1);
       }
@@ -1304,8 +1296,8 @@ async searchAndAddProductBundle(searchTerm) {
             this.search_backup = "";
             this.$refs.debounce_search?.focus();
             return; // Exit early since bundle was processed
-            }
           }
+        }
 
         // Ensure correct rate based on selected currency
         if (this.pos_profile.posa_allow_multi_currency) {
@@ -1371,6 +1363,13 @@ async searchAndAddProductBundle(searchTerm) {
           }, 300);
         }
       }
+
+      // Clear the input only when triggered via scanner
+      if (fromScanner) {
+        vm.clearSearch();
+        vm.$refs.debounce_search && vm.$refs.debounce_search.focus();
+        vm.search_from_scanner = false;
+      }
     }, 300),
     get_item_qty(first_search) {
       const qtyVal = this.qty != null ? this.qty : 1;
@@ -1411,11 +1410,11 @@ async searchAndAddProductBundle(searchTerm) {
       return search_term;
     },
     esc_event() {
-      this.search = "";
-      this.first_search = "";
-      this.search_backup = "";
+      this.search = null;
+      this.first_search = null;
+      this.search_backup = null;
       this.qty = 1;
-      this.$refs.debounce_search?.focus();
+      this.$refs.debounce_search.focus();
     },
     update_items_details(items) {
       const vm = this;
@@ -1644,12 +1643,21 @@ async searchAndAddProductBundle(searchTerm) {
 
       // original_rate is in price list currency
       const price_list_rate = item.original_rate;
+
+      // Determine base rate using available conversion info
       const base_rate = price_list_rate * (item.plc_conversion_rate || 1);
 
       item.base_rate = base_rate;
       item.base_price_list_rate = price_list_rate;
 
-      item.rate = this.flt(price_list_rate * (this.exchange_rate || 1), this.currency_precision);
+      // If the price list currency matches the selected currency,
+      // don't apply any conversion
+      const converted_rate =
+        item.original_currency === this.selected_currency
+          ? price_list_rate
+          : price_list_rate * (this.exchange_rate || 1);
+
+      item.rate = this.flt(converted_rate, this.currency_precision);
       item.currency = this.selected_currency;
       item.price_list_rate = item.rate;
     },
@@ -1682,7 +1690,27 @@ async searchAndAddProductBundle(searchTerm) {
       }
     },
     trigger_onscan(sCode) {
-      this.handleBarcodeSearch(sCode, true);
+      // indicate this search came from a scanner
+      this.search_from_scanner = true;
+      // apply scanned code as search term
+      this.first_search = sCode;
+      this.search = sCode;
+
+      this.$nextTick(() => {
+        if (this.filtered_items.length == 0) {
+          this.eventBus.emit("show_message", {
+            title: `No Item has this barcode "${sCode}"`,
+            color: "error",
+          });
+          frappe.utils.play_sound("error");
+        } else {
+          this.enter_event();
+        }
+
+        // clear search field for next scan and refocus input
+        this.clearSearch();
+        this.$refs.debounce_search && this.$refs.debounce_search.focus();
+      });
     },
     generateWordCombinations(inputString) {
       const words = inputString.split(" ");
@@ -1793,6 +1821,27 @@ async searchAndAddProductBundle(searchTerm) {
       this.saveItemSettings();
       this.show_item_settings = false;
     },
+    onDragStart(event, item) {
+      this.isDragging = true;
+      
+      // Set drag data
+      event.dataTransfer.setData('application/json', JSON.stringify({
+        type: 'item-from-selector',
+        item: item
+      }));
+      
+      // Set drag effect
+      event.dataTransfer.effectAllowed = 'copy';
+      
+      // Emit event to show drop feedback in ItemsTable
+      this.eventBus.emit('item-drag-start', item);
+    },
+    onDragEnd(event) {
+      this.isDragging = false;
+      
+      // Emit event to hide drop feedback
+      this.eventBus.emit('item-drag-end');
+    },
     saveItemSettings() {
       try {
         const settings = { 
@@ -1827,7 +1876,7 @@ async searchAndAddProductBundle(searchTerm) {
       return this.getItemsHeaders();
     },
     filtered_items() {
-      this.search = this.get_search(this.first_search);
+      this.search = this.get_search(this.first_search).trim();
       if (!this.pos_profile.pose_use_limit_search) {
         let filtred_list = [];
         let filtred_group_list = [];
@@ -1873,29 +1922,25 @@ async searchAndAddProductBundle(searchTerm) {
           );
 
           if (filtred_list.length === 0) {
-        // Match by code, name, or OEM part number containing the term
-        filtred_list = filtred_group_list.filter(item => {
-          const matchesCode = item.item_code.toLowerCase().includes(term);
-          const matchesName = item.item_name.toLowerCase().includes(term);
-          const matchesOEM = item.custom_oem_part_number && 
-                            item.custom_oem_part_number.toLowerCase().includes(term);
-          
-          return matchesCode || matchesName || matchesOEM;
-        });
-      }
+            // Match by code or name containing the term
+            filtred_list = filtred_group_list.filter(item =>
+              item.item_code.toLowerCase().includes(term) ||
+              item.item_name.toLowerCase().includes(term)
+            );
+          }
 
           if (filtred_list.length === 0) {
             // Fallback to partial fuzzy match on name
-          const search_combinations = this.generateWordCombinations(this.search);
-          filtred_list = filtred_group_list.filter(item => {
-            const nameLower = item.item_name.toLowerCase();
+            const search_combinations = this.generateWordCombinations(this.search);
+            filtred_list = filtred_group_list.filter(item => {
+              const nameLower = item.item_name.toLowerCase();
               return search_combinations.some(element => {
-              element = element.toLowerCase().trim();
-              const element_regex = new RegExp(`.*${element.split('').join('.*')}.*`);
-              return element_regex.test(nameLower);
+                element = element.toLowerCase().trim();
+                const element_regex = new RegExp(`.*${element.split('').join('.*')}.*`);
+                return element_regex.test(nameLower);
+              });
             });
-          });
-        }
+          }
 
           if (
             filtred_list.length === 0 &&
@@ -1979,7 +2024,7 @@ async searchAndAddProductBundle(searchTerm) {
         return this.first_search;
       },
       set: _.debounce(function (newValue) {
-        this.first_search = newValue;
+        this.first_search = (newValue || '').trim();
       }, 200),
     },
     debounce_qty: {

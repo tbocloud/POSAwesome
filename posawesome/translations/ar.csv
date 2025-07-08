@@ -148,3 +148,4 @@ DocType: POS Offer,Warehouse,مستودع
 apps/posawesome/posawesome/posawesome/page/posapp/posapp.js,is Offer,هو العرض
 apps/posawesome/posawesome/posawesome/page/posapp/posapp.js,Type,يكتب
 apps/posawesome/posawesome/posawesome/page/posapp/posapp.js,Total Qty,مجموع الكمية
+Custom Field - label: POS Profile-posa_create_only_sales_order,Create Only Sales Order,إنشاء أمر مبيعات فقط

@@ -313,13 +313,13 @@
     <v-card flat class="cards mb-0 mt-3 py-0">
       <v-row align="start" no-gutters>
         <v-col cols="6">
-          <v-btn block size="large" color="primary" theme="dark" @click="submit" :disabled="vaildatPayment">
+          <v-btn block size="large" color="primary" theme="dark" @click="submit" :loading="loading" :disabled="loading || vaildatPayment">
             {{ __("Submit") }}
           </v-btn>
         </v-col>
         <v-col cols="6" class="pl-1">
           <v-btn block size="large" color="success" theme="dark" @click="submit(undefined, false, true)"
-            :disabled="vaildatPayment">
+            :loading="loading" :disabled="loading || vaildatPayment">
             {{ __("Submit & Print") }}
           </v-btn>
         </v-col>
@@ -836,6 +836,7 @@ export default {
         return;
       }
       // Proceed to submit the invoice
+      this.loading = true;
       this.submit_invoice(print);
     },
     // Submit invoice to backend after all validations
@@ -878,20 +879,26 @@ export default {
           vm.eventBus.emit("clear_invoice");
           vm.eventBus.emit("reset_posting_date");
           vm.back_to_invoice();
+          vm.loading = false;
           return;
         } catch (error) {
           vm.eventBus.emit("show_message", {
             title: __("Cannot Save Offline Invoice: ") + (error.message || __("Unknown error")),
             color: "error"
           });
+          vm.loading = false;
           return;
         }
       }
       frappe.call({
-        method: "posawesome.posawesome.api.invoices.submit_invoice",
+        method:
+          this.invoiceType === "Order" && this.pos_profile.posa_create_only_sales_order
+            ? "posawesome.posawesome.api.sales_orders.submit_sales_order"
+            : "posawesome.posawesome.api.invoices.submit_invoice",
         args: {
           data: data,
           invoice: this.invoice_doc,
+          order: this.invoice_doc,
         },
         callback: function (r) {
           if (r.exc) {
@@ -923,6 +930,7 @@ export default {
                 color: "error",
               });
             }
+            vm.loading = false;
             return;
           }
           if (!r.message) {
@@ -930,6 +938,7 @@ export default {
               title: __("Error submitting invoice: No response from server"),
               color: "error",
             });
+            vm.loading = false;
             return;
           }
           if (print) {
@@ -942,7 +951,10 @@ export default {
           vm.sales_person = "";
           vm.eventBus.emit("set_last_invoice", vm.invoice_doc.name);
           vm.eventBus.emit("show_message", {
-            title: __("Invoice {0} is Submitted", [r.message.name]),
+            title:
+              vm.invoiceType === "Order" && vm.pos_profile.posa_create_only_sales_order
+                ? __("Sales Order {0} is Submitted", [r.message.name])
+                : __("Invoice {0} is Submitted", [r.message.name]),
             color: "success",
           });
           frappe.utils.play_sound("submit");
@@ -953,6 +965,7 @@ export default {
           vm.eventBus.emit("clear_invoice");
           vm.eventBus.emit("reset_posting_date");
           vm.back_to_invoice();
+          vm.loading = false;
         }
       });
     },

@@ -66,13 +66,13 @@ export function getItemsStorage() {
 }
 
 export function setItemsStorage(items) {
-        try {
-                memory.items_storage = JSON.parse(JSON.stringify(items));
-        } catch (e) {
-                console.error("Failed to serialize items for storage", e);
-                memory.items_storage = [];
-        }
-        persist("items_storage", memory.items_storage);
+	try {
+		memory.items_storage = JSON.parse(JSON.stringify(items));
+	} catch (e) {
+		console.error("Failed to serialize items for storage", e);
+		memory.items_storage = [];
+	}
+	persist("items_storage", memory.items_storage);
 }
 
 export function getCustomerStorage() {
@@ -152,4 +152,95 @@ export function setManualOffline(state) {
 
 export function toggleManualOffline() {
 	setManualOffline(!memory.manual_offline);
+}
+
+export async function clearAllCache() {
+	try {
+		if (db.isOpen()) {
+			await db.close();
+		}
+		await Dexie.delete('posawesome_offline');
+		await db.open();
+	} catch (e) {
+		console.error('Failed to clear IndexedDB cache', e);
+	}
+
+	if (typeof localStorage !== 'undefined') {
+		Object.keys(localStorage).forEach((key) => {
+			if (key.startsWith('posa_')) {
+				localStorage.removeItem(key);
+			}
+		});
+	}
+
+	memory.offline_invoices = [];
+	memory.offline_customers = [];
+	memory.offline_payments = [];
+	memory.pos_last_sync_totals = { pending: 0, synced: 0, drafted: 0 };
+	memory.uom_cache = {};
+	memory.offers_cache = [];
+	memory.customer_balance_cache = {};
+	memory.local_stock_cache = {};
+	memory.stock_cache_ready = false;
+	memory.items_storage = [];
+	memory.customer_storage = [];
+	memory.pos_opening_storage = null;
+	memory.opening_dialog_storage = null;
+	memory.sales_persons_storage = [];
+	memory.price_list_cache = {};
+	memory.item_details_cache = {};
+	memory.manual_offline = false;
+}
+
+/**
+ * Estimates the current cache usage size in bytes and percentage
+ * @returns {Promise<Object>} Object containing total, localStorage, and indexedDB sizes in bytes, and usage percentage
+ */
+export async function getCacheUsageEstimate() {
+  try {
+    // Calculate localStorage size
+    let localStorageSize = 0;
+    if (typeof localStorage !== "undefined") {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('posa_')) {
+          const value = localStorage.getItem(key) || '';
+          localStorageSize += (key.length + value.length) * 2; // UTF-16 characters are 2 bytes each
+        }
+      }
+    }
+
+    // Estimate IndexedDB size
+    let indexedDBSize = 0;
+    try {
+      if (db.isOpen()) {
+        const allItems = await db.table("keyval").toArray();
+        indexedDBSize = allItems.reduce((size, item) => {
+          const itemSize = JSON.stringify(item).length * 2; // UTF-16 characters are 2 bytes each
+          return size + itemSize;
+        }, 0);
+      }
+    } catch (e) {
+      console.error('Failed to calculate IndexedDB size', e);
+    }
+
+    const totalSize = localStorageSize + indexedDBSize;
+    const maxSize = 10 * 1024 * 1024; // Assume 10MB as max size
+    const usagePercentage = Math.min(100, Math.round((totalSize / maxSize) * 100));
+
+    return {
+      total: totalSize,
+      localStorage: localStorageSize,
+      indexedDB: indexedDBSize,
+      percentage: usagePercentage
+    };
+  } catch (e) {
+    console.error('Failed to estimate cache usage', e);
+    return {
+      total: 0,
+      localStorage: 0,
+      indexedDB: 0,
+      percentage: 0
+    };
+  }
 }

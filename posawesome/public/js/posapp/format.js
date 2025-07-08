@@ -21,7 +21,11 @@ export default {
             }
             let number = Number(String(value).replace(/,/g, ""));
             if (isNaN(number)) number = 0;
-            const prec = precision != null ? precision : this.currency_precision || 2;
+            let prec = precision != null ? Number(precision) : Number(this.currency_precision) || 2;
+            // Clamp precision to the valid range 0-20 to avoid RangeError
+            if (!Number.isInteger(prec) || prec < 0 || prec > 20) {
+                prec = Math.min(Math.max(parseInt(prec) || 2, 0), 20);
+            }
             return number.toLocaleString('en-US', {
                 minimumFractionDigits: prec,
                 maximumFractionDigits: prec
@@ -33,7 +37,11 @@ export default {
             }
             let number = Number(String(value).replace(/,/g, ""));
             if (isNaN(number)) number = 0;
-            const prec = precision != null ? precision : this.float_precision || 2;
+            let prec = precision != null ? Number(precision) : Number(this.float_precision) || 2;
+            // Clamp precision to the valid range 0-20 to avoid RangeError
+            if (!Number.isInteger(prec) || prec < 0 || prec > 20) {
+                prec = Math.min(Math.max(parseInt(prec) || 2, 0), 20);
+            }
             return number.toLocaleString('en-US', {
                 minimumFractionDigits: prec,
                 maximumFractionDigits: prec

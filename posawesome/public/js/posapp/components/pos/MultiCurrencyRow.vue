@@ -8,8 +8,14 @@
     <v-col cols="4" class="pb-2">
       <v-text-field density="compact" variant="outlined" color="primary"
         :label="'Price List ' + price_list_currency + ' to ' + internal_selected_currency"
-        bg-color="white" hide-details v-model="internal_exchange_rate" :rules="[isNumber]"
-        @change="onExchangeChange"></v-text-field>
+        bg-color="white" hide-details v-model="internal_plc_rate" :rules="[isNumber]"
+        @change="onPlcRateChange"></v-text-field>
+    </v-col>
+    <v-col cols="4" class="pb-2">
+      <v-text-field density="compact" variant="outlined" color="primary"
+        :label="frappe._('Conversion Rate')" bg-color="white" hide-details
+        v-model="internal_conversion_rate" :rules="[isNumber]"
+        @change="onConversionChange"></v-text-field>
     </v-col>
   </v-row>
 </template>
@@ -19,7 +25,8 @@ export default {
   props: {
     pos_profile: Object,
     selected_currency: String,
-    exchange_rate: Number,
+    plc_conversion_rate: Number,
+    conversion_rate: Number,
     available_currencies: Array,
     isNumber: Function,
     price_list_currency: String,
@@ -27,23 +34,30 @@ export default {
   data() {
     return {
       internal_selected_currency: this.selected_currency,
-      internal_exchange_rate: this.exchange_rate,
+      internal_plc_rate: this.plc_conversion_rate,
+      internal_conversion_rate: this.conversion_rate,
     };
   },
   watch: {
     selected_currency(val) {
       this.internal_selected_currency = val;
     },
-    exchange_rate(val) {
-      this.internal_exchange_rate = val;
+    plc_conversion_rate(val) {
+      this.internal_plc_rate = val;
+    },
+    conversion_rate(val) {
+      this.internal_conversion_rate = val;
     },
   },
   methods: {
     onCurrencyUpdate(val) {
       this.$emit('update:selected_currency', val);
     },
-    onExchangeChange() {
-      this.$emit('update:exchange_rate', this.internal_exchange_rate);
+    onPlcRateChange() {
+      this.$emit('update:plc_conversion_rate', this.internal_plc_rate);
+    },
+    onConversionChange() {
+      this.$emit('update:conversion_rate', this.internal_conversion_rate);
     },
   },
 };

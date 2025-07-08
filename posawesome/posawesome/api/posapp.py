@@ -411,8 +411,7 @@ def get_items(
                 "has_batch_no",
                 "has_serial_no",
                 "max_discount",
-                "brand",
-                "custom_oem_part_number" 
+                "brand"
             ],
             limit_start=limit_start,
             limit_page_length=limit_page_length,
@@ -460,7 +459,7 @@ def get_items(
                     fields=["barcode", "posa_uom"],
                 )
                 batch_no_data = []
-                if search_batch_no:
+                if search_batch_no or item.has_batch_no:
                     batch_list = get_batch_qty(warehouse=warehouse, item_code=item_code)
                     if batch_list:
                         for batch in batch_list:
@@ -1296,8 +1295,6 @@ def get_items_details(pos_profile, items_data, price_list=None):
             for item in items_data:
                 item_code = item.get("item_code")
 
-                custom_oem_part_number = frappe.db.get_value("Item", item_code, "custom_oem_part_number")
-
                 item_stock_qty = get_stock_availability(item_code, warehouse)
                 (has_batch_no, has_serial_no) = frappe.db.get_value(
                     "Item", item_code, ["has_batch_no", "has_serial_no"]
@@ -1375,7 +1372,6 @@ def get_items_details(pos_profile, items_data, price_list=None):
                         "currency": item_price.get("currency")
                         or price_list_currency
                         or pos_profile.get("currency"),
-                        "custom_oem_part_number": custom_oem_part_number or ""
                     }
                 )
 
@@ -1460,8 +1456,6 @@ def get_item_detail(item, doc=None, warehouse=None, price_list=None):
             uoms.append({"uom": stock_uom, "conversion_factor": 1.0})
     
     res["item_uoms"] = uoms
-    oem_part_number = frappe.get_value("Item", item_code, "custom_oem_part_number")
-    res["custom_oem_part_number"] = oem_part_number or ""
     
     return res
 
@@ -1485,10 +1479,10 @@ def get_stock_availability(item_code, warehouse):
 
 @frappe.whitelist()
 def create_customer(
-    customer_id,
     customer_name,
     company,
     pos_profile_doc,
+    customer_id=None,
     tax_id=None,
     mobile_no=None,
     email_id=None,
