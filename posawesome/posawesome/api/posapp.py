@@ -265,6 +265,7 @@ def get_items(
         offset=None,
     ):
         pos_profile = json.loads(pos_profile)
+        warehouse = pos_profile.get("warehouse")
         condition = ""
         
         # Clear quantity cache to ensure fresh values on each search
@@ -411,7 +412,8 @@ def get_items(
                 "has_batch_no",
                 "has_serial_no",
                 "max_discount",
-                "brand"
+                "brand",
+                "custom_oem_part_number" 
             ],
             limit_start=limit_start,
             limit_page_length=limit_page_length,
@@ -1254,6 +1256,7 @@ def get_items_details(pos_profile, items_data, price_list=None):
         today = nowdate()
         pos_profile = json.loads(pos_profile)
         items_data = json.loads(items_data)
+        show_last_incoming_rate = pos_profile.get("custom_show_last_incoming_rate", 0)
         warehouse = pos_profile.get("warehouse")
         result = []
 
@@ -1261,6 +1264,19 @@ def get_items_details(pos_profile, items_data, price_list=None):
             price_list = pos_profile.get("selling_price_list")
 
         item_codes = [item.get("item_code") for item in items_data]
+
+        last_incoming_rates = {}
+        if show_last_incoming_rate and warehouse and item_codes:
+            bin_data = frappe.get_all(
+                "Bin",
+                filters={
+                    "item_code": ["in", item_codes],
+                    "warehouse": warehouse
+                },
+                fields=["item_code", "valuation_rate"]
+            )
+            for bin_item in bin_data:
+                last_incoming_rates[bin_item.item_code] = bin_item.valuation_rate or 0
 
         price_list_currency = frappe.db.get_value("Price List", price_list, "currency")
         item_prices_data = frappe.get_all(
@@ -1294,6 +1310,8 @@ def get_items_details(pos_profile, items_data, price_list=None):
         if len(items_data) > 0:
             for item in items_data:
                 item_code = item.get("item_code")
+                custom_oem_part_number = frappe.db.get_value("Item", item_code, "custom_oem_part_number")
+                last_incoming_rate = last_incoming_rates.get(item_code, 0) if show_last_incoming_rate else 0
 
                 item_stock_qty = get_stock_availability(item_code, warehouse)
                 (has_batch_no, has_serial_no) = frappe.db.get_value(
@@ -1372,6 +1390,8 @@ def get_items_details(pos_profile, items_data, price_list=None):
                         "currency": item_price.get("currency")
                         or price_list_currency
                         or pos_profile.get("currency"),
+                        "custom_oem_part_number": custom_oem_part_number or "",
+                        "last_incoming_rate": last_incoming_rate,  
                     }
                 )
 
@@ -2537,36 +2557,33 @@ def search_product_bundle(search_term, pos_profile=None):
     try:
         if not search_term:
             return []
-            
+                
         # Parse pos_profile if it's a string
         if isinstance(pos_profile, str):
             pos_profile = json.loads(pos_profile)
-        
+                
         # Search for product bundles that match the search term
         bundles = frappe.db.sql("""
             SELECT 
                 pb.name,
                 pb.new_item_code as item_code,
-                pb.description,
-                i.item_name,
-                i.custom_oem_part_number
+                i.item_code
             FROM `tabProduct Bundle` pb
             INNER JOIN `tabItem` i ON i.name = pb.new_item_code
             WHERE pb.disabled = 0
             AND (
                 pb.new_item_code LIKE %(search_term)s
                 OR pb.name LIKE %(search_term)s
-                OR i.item_name LIKE %(search_term)s
-                OR i.custom_oem_part_number LIKE %(search_term)s
+                OR i.item_code LIKE %(search_term)s
             )
             ORDER BY pb.name
             LIMIT 10
         """, {
             'search_term': f"%{search_term}%"
         }, as_dict=True)
-        
+                
         return bundles
-        
+            
     except Exception as e:
         frappe.log_error(f"Error searching product bundle for {search_term}: {str(e)}")
         return []
