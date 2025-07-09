@@ -223,6 +223,32 @@ def get_items_with_bundle_info(pos_profile, price_list=None, item_group=None, se
 
 
 @frappe.whitelist()
+def get_item_rack_info(item_code, pos_profile):
+    """Get rack information for an item based on POS Profile"""
+    try:
+        # Check if POS Profile has rack feature enabled
+        show_rack = frappe.get_cached_value("POS Profile", pos_profile, "custom_show_logical_rack")
+        if not show_rack:
+            return None
+            
+        # Get rack info from Logical Rack doctype
+        rack_info = frappe.db.get_value(
+            "Logical Rack",
+            {
+                "item": item_code,
+                "pos_profile": pos_profile
+            },
+            "rack_id"
+        )
+        
+        return rack_info
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting rack info for {item_code}: {str(e)}")
+        return None
+
+
+@frappe.whitelist()
 def get_items(
     pos_profile,
     price_list=None,
@@ -267,6 +293,8 @@ def get_items(
         pos_profile = json.loads(pos_profile)
         warehouse = pos_profile.get("warehouse")
         condition = ""
+
+        show_rack = pos_profile.get("custom_show_logical_rack", 0)
         
         # Clear quantity cache to ensure fresh values on each search
         try:
@@ -448,6 +476,21 @@ def get_items(
 
             for item in items_data:
                 item_code = item.item_code
+
+                rack_id = None
+                if show_rack:
+                    try:
+                        rack_id = frappe.db.get_value(
+                            "Logical Rack",
+                            {
+                                "item": item_code,
+                                "pos_profile": pos_profile.get("name")
+                            },
+                            "rack_id"
+                        )
+                    except Exception as e:
+                        frappe.log_error(f"Error getting rack for {item_code}: {str(e)}")
+                        rack_id = None
                 item_price = {}
                 if item_prices.get(item_code):
                     item_price = (
@@ -537,6 +580,7 @@ def get_items(
                             "attributes": attributes or "",
                             "item_attributes": item_attributes or "",
                             "item_uoms": uoms or [],
+                            "rack_id": rack_id or "",
                         }
                     )
                     result.append(row)
@@ -1256,6 +1300,7 @@ def get_items_details(pos_profile, items_data, price_list=None):
         today = nowdate()
         pos_profile = json.loads(pos_profile)
         items_data = json.loads(items_data)
+        show_rack = pos_profile.get("custom_show_logical_rack", 0)
         show_last_incoming_rate = pos_profile.get("custom_show_last_incoming_rate", 0)
         warehouse = pos_profile.get("warehouse")
         result = []
@@ -1312,6 +1357,20 @@ def get_items_details(pos_profile, items_data, price_list=None):
                 item_code = item.get("item_code")
                 custom_oem_part_number = frappe.db.get_value("Item", item_code, "custom_oem_part_number")
                 last_incoming_rate = last_incoming_rates.get(item_code, 0) if show_last_incoming_rate else 0
+
+                rack_id = None
+                if show_rack:
+                    try:
+                        rack_id = frappe.db.get_value(
+                            "Logical Rack",
+                            {
+                                "item": item_code,
+                                "pos_profile": pos_profile.get("name")
+                            },
+                            "rack_id"
+                        )
+                    except Exception as e:
+                        rack_id = None
 
                 item_stock_qty = get_stock_availability(item_code, warehouse)
                 (has_batch_no, has_serial_no) = frappe.db.get_value(
@@ -1392,6 +1451,7 @@ def get_items_details(pos_profile, items_data, price_list=None):
                         or pos_profile.get("currency"),
                         "custom_oem_part_number": custom_oem_part_number or "",
                         "last_incoming_rate": last_incoming_rate,  
+                        "rack_id": rack_id or "",
                     }
                 )
 
