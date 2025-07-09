@@ -460,6 +460,7 @@ export default {
         { title: __('QTY'), key: 'qty', align: 'center', required: true },
         { title: __('UOM'), key: 'uom', align: 'center', required: false },
         { title: __('Rate'), key: 'rate', align: 'center', required: true },
+        { title: __('Last Inc Rate'), key: 'last_incoming_rate', align: 'center', required: false },
         { title: __('Discount %'), key: 'discount_value', align: 'center', required: false },
         { title: __('Discount Amount'), key: 'discount_amount', align: 'center', required: false },
         { title: __('Amount'), key: 'amount', align: 'center', required: true },
@@ -474,6 +475,7 @@ export default {
             if (col.required) return true;
             if (col.key === 'discount_value' && this.pos_profile.posa_display_discount_percentage) return true;
             if (col.key === 'discount_amount' && this.pos_profile.posa_display_discount_amount) return true;
+            if (col.key === 'last_incoming_rate' && this.pos_profile.custom_show_last_incoming_rate) return true;
             return false;
           })
           .map(col => col.key);

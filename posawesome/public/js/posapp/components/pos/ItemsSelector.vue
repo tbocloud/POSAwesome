@@ -118,6 +118,9 @@
                     </div>
                   </div>
                 </template>
+                <template v-slot:item.custom_oem_part_number="{ item }">
+                <span class="text-success">{{ item.custom_oem_part_number || '-' }}</span>
+              </template>
                 <template v-slot:item.actual_qty="{ item }">
                   <span class="golden--text">{{ format_number(item.actual_qty, hide_qty_decimals ? 0 : 4) }}</span>
                 </template>
@@ -1248,6 +1251,14 @@ async searchAndAddProductBundle(searchTerm) {
         { title: __("Available QTY"), key: "actual_qty", align: "start" },
         { title: __("UOM"), key: "stock_uom", align: "start" },
       ];
+      if (this.pos_profile && this.pos_profile.custom_show_oem_part_number) {
+      items_headers.push({
+        title: __("OEM Part No"),
+        align: "start",
+        sortable: true,
+        key: "custom_oem_part_number",
+      });
+    }
       if (!this.pos_profile.posa_display_item_code) {
         items_headers.splice(1, 1);
       }
@@ -1438,6 +1449,14 @@ async searchAndAddProductBundle(searchTerm) {
             has_batch_no: det.has_batch_no,
             has_serial_no: det.has_serial_no,
           });
+          frappe.db.get_value("Item", item.item_code, "custom_oem_part_number")
+            .then((r) => {
+              if (r.message) {
+                
+                  item.custom_oem_part_number = r.message.custom_oem_part_number
+              }
+            });
+          
           if (det.item_uoms && det.item_uoms.length > 0) {
             item.item_uoms = det.item_uoms;
             saveItemUOMs(item.item_code, det.item_uoms);
@@ -1453,7 +1472,12 @@ async searchAndAddProductBundle(searchTerm) {
             item.original_rate = item.rate;
             item.original_currency = item.currency || vm.pos_profile.currency;
           }
-
+          frappe.db.get_value("Bin", {'item_code':item.item_code}, "valuation_rate")
+            .then((r) => {
+              if (r.message) {
+                item.last_incoming_rate = r.message.valuation_rate
+              }
+            });
           vm.applyCurrencyConversionToItem(item);
         }
       });
