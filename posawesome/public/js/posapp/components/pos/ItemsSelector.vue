@@ -588,8 +588,10 @@ async searchAndAddProductBundle(searchTerm) {
     const matchesCode = item.item_code.toLowerCase().includes(term);
     const matchesOEM = item.custom_oem_part_number && 
                       item.custom_oem_part_number.toLowerCase().includes(term);
+    const matchesRack = item.rack_id && 
+                       item.rack_id.toLowerCase().includes(term);
     
-    return matchesName || matchesCode || matchesOEM;
+    return matchesName || matchesCode || matchesOEM || matchesRack;
   });
 },
 
@@ -627,6 +629,10 @@ async searchAndAddProductBundle(searchTerm) {
           this.eventBus.emit("calc_uom", itemToAdd, barcodeMatch.posa_uom);
         }
       }
+
+      if (item.rack_id) {
+    itemToAdd.rack_id = item.rack_id;
+  }
 
       // Check stock availability
       if (itemToAdd.actual_qty === 0 && this.pos_profile.posa_display_items_in_stock) {
@@ -1478,6 +1484,23 @@ async searchAndAddProductBundle(searchTerm) {
                 item.last_incoming_rate = r.message.valuation_rate
               }
             });
+            if (vm.pos_profile.custom_show_logical_rack) {
+        frappe.db.get_value("Logical Rack", {
+          'item': item.item_code,
+          'pos_profile': vm.pos_profile.name
+        }, "rack_id")
+          .then((r) => {
+            if (r.message) {
+              item.rack_id = r.message.rack_id || "";
+            } else {
+              item.rack_id = "";
+            }
+          })
+          .catch((error) => {
+            console.warn(`Failed to fetch rack for item ${item.item_code}:`, error);
+            item.rack_id = "";
+          });
+      }
           vm.applyCurrencyConversionToItem(item);
         }
       });
