@@ -1302,13 +1302,38 @@ def get_items_details(pos_profile, items_data, price_list=None):
         items_data = json.loads(items_data)
         show_rack = pos_profile.get("custom_show_logical_rack", 0)
         show_last_incoming_rate = pos_profile.get("custom_show_last_incoming_rate", 0)
+        show_last_customer_rate = pos_profile.get("custom_show_last_custom_rate", 0)
         warehouse = pos_profile.get("warehouse")
         result = []
+        customer = pos_profile.get("customer")
 
         if not price_list:
             price_list = pos_profile.get("selling_price_list")
 
         item_codes = [item.get("item_code") for item in items_data]
+
+        last_customer_rates = {}
+        if show_last_customer_rate and customer and item_codes:
+            customer_rates_data = frappe.db.sql("""
+                SELECT 
+                    sii.item_code,
+                    sii.rate,
+                    si.posting_date,
+                    ROW_NUMBER() OVER (PARTITION BY sii.item_code ORDER BY si.posting_date DESC, si.creation DESC) as rn
+                FROM `tabSales Invoice Item` sii
+                INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+                WHERE si.customer = %(customer)s 
+                AND sii.item_code IN %(item_codes)s
+                AND si.docstatus = 1
+            """, {
+                'customer': customer,
+                'item_codes': item_codes
+            }, as_dict=True)
+            
+            for rate_data in customer_rates_data:
+                if rate_data.rn == 1:
+                    last_customer_rates[rate_data.item_code] = rate_data.rate or 0
+
 
         last_incoming_rates = {}
         if show_last_incoming_rate and warehouse and item_codes:
@@ -1357,6 +1382,7 @@ def get_items_details(pos_profile, items_data, price_list=None):
                 item_code = item.get("item_code")
                 custom_oem_part_number = frappe.db.get_value("Item", item_code, "custom_oem_part_number")
                 last_incoming_rate = last_incoming_rates.get(item_code, 0) if show_last_incoming_rate else 0
+                last_customer_rate = last_customer_rates.get(item_code, 0) if show_last_customer_rate else 0 
 
                 rack_id = None
                 if show_rack:
@@ -1452,6 +1478,7 @@ def get_items_details(pos_profile, items_data, price_list=None):
                         "custom_oem_part_number": custom_oem_part_number or "",
                         "last_incoming_rate": last_incoming_rate,  
                         "rack_id": rack_id or "",
+                        "last_customer_rate": last_customer_rate, 
                     }
                 )
 
@@ -2740,3 +2767,41 @@ def get_app_info() -> Dict[str, List[Dict[str, str]]]:
         })
     
     return {"apps": apps_info}
+
+
+
+@frappe.whitelist()
+def get_last_customer_rate_value(customer, item_code):
+    """
+    Get the last rate at which the customer purchased this item
+    Returns data in the same format as frappe.db.get_value
+    Mimics: frappe.db.get_value("Bin", {'item_code':item.item_code}, "valuation_rate")
+    """
+    try:
+        if not customer or not item_code:
+            return {"last_customer_rate": 0}
+            
+        # Get the most recent sales invoice rate for this customer and item
+        # Using the same logic as Bin -> valuation_rate but for Sales Invoice Item -> rate
+        result = frappe.db.sql("""
+            SELECT sii.rate 
+            FROM `tabSales Invoice Item` sii
+            INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+            WHERE si.customer = %(customer)s 
+            AND sii.item_code = %(item_code)s
+            AND si.docstatus = 1
+            ORDER BY si.posting_date DESC, si.creation DESC
+            LIMIT 1
+        """, {
+            'customer': customer,
+            'item_code': item_code
+        })
+        
+        if result and len(result) > 0:
+            return {"last_customer_rate": result[0][0] or 0}
+        
+        return {"last_customer_rate": 0}
+        
+    except Exception as e:
+        frappe.log_error(f"Error getting last customer rate for {customer}, {item_code}: {str(e)}")
+        return {"last_customer_rate": 0}
