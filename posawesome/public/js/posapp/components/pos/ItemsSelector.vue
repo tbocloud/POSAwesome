@@ -232,6 +232,7 @@ export default {
 
   watch: {
     customer: _.debounce(function () {
+      this.update_items_details(this.items);
       if (this.pos_profile.posa_force_reload_items) {
         if (this.pos_profile.posa_smart_reload_mode) {
           // When limit search is enabled there may be no items yet.
@@ -313,9 +314,11 @@ export default {
     },
     // Automatically search and add item whenever the query changes
     first_search: _.debounce(function (val) {
-      // Call without arguments so search_onchange treats it like an Enter key
-      this.search_onchange();
-    }, 300),
+  // Only auto-search if checkbox is enabled
+  if (this.pos_profile && this.pos_profile.custom_auto_search_enter_items) {
+    this.search_onchange();
+  }
+}, 300),
 
     // Refresh item prices whenever the user changes currency
     selected_currency() {
@@ -386,6 +389,17 @@ export default {
     return false;
   }
 },
+
+getLastCustomerRate(item_code) {
+    return frappe.call({
+      method: "posawesome.posawesome.api.posapp.get_last_customer_rate_value",
+      args: {
+        customer: this.customer,
+        item_code: item_code
+      }
+    });
+  },
+
 
 async searchAndAddProductBundle(searchTerm) {
   try {
@@ -1254,17 +1268,15 @@ async searchAndAddProductBundle(searchTerm) {
           key: "item_code",
         },
         { title: __("Rate"), key: "rate", align: "start" },
-        { title: __("Available QTY"), key: "actual_qty", align: "start" },
+        { title: __("Avail.Qty"), key: "actual_qty", align: "start" },
         { title: __("UOM"), key: "stock_uom", align: "start" },
-      ];
-      if (this.pos_profile && this.pos_profile.custom_show_oem_part_number) {
+      ];  
       items_headers.push({
         title: __("OEM Part No"),
         align: "start",
         sortable: true,
         key: "custom_oem_part_number",
       });
-    }
       if (!this.pos_profile.posa_display_item_code) {
         items_headers.splice(1, 1);
       }
@@ -1337,6 +1349,21 @@ async searchAndAddProductBundle(searchTerm) {
           }
           item.qty = qtyVal;
         }
+      //   if (this.pos_profile.custom_show_last_custom_rate && this.customer) {
+      //   this.getLastCustomerRate(this.customer, item.item_code)
+      //     .then((r) => {
+      //       if (r.message) {
+      //         item.last_customer_rate = r.message.last_customer_rate
+      //       }
+      //     })
+      //     .catch((error) => {
+      //       console.warn(`Failed to fetch last customer rate:`, error);
+      //       item.last_customer_rate = 8;
+      //     });
+      // } else {
+      //   item.last_customer_rate = 6;
+      // }
+
         this.eventBus.emit("add_item", item);
         this.qty = 1;
         this.search = "";
@@ -1484,6 +1511,16 @@ async searchAndAddProductBundle(searchTerm) {
                 item.last_incoming_rate = r.message.valuation_rate
               }
             });
+            console.log(this.customer)
+            this.getLastCustomerRate(item.item_code)
+          .then((r) => {
+            if (r.message) {
+              // item.last_customer_rate = r.message.last_customer_rate
+              item.last_customer_rate =r.message.last_customer_rate
+            }
+          })
+
+       
             if (vm.pos_profile.custom_show_logical_rack) {
         frappe.db.get_value("Logical Rack", {
           'item': item.item_code,
@@ -2156,7 +2193,6 @@ async searchAndAddProductBundle(searchTerm) {
     // Refresh item quantities when connection to server is restored
     this.eventBus.on("server-online", async () => {
       if (this.items && this.items.length > 0) {
-        await this.update_items_details(this.items);
       }
     });
 

@@ -272,6 +272,7 @@ fixtures = [
                     "Item-custom_oem_part_number",
                     "POS Profile-custom_show_last_incoming_rate",
                     "POS Profile-custom_show_logical_rack",
+                    "POS Profile-custom_show_last_custom_rate",
                 ),
             ]
         ],
