@@ -273,6 +273,8 @@ fixtures = [
                     "POS Profile-custom_show_last_incoming_rate",
                     "POS Profile-custom_show_logical_rack",
                     "POS Profile-custom_show_last_custom_rate",
+                    "POS Profile-custom_require_customer_po_details",
+                    "Sales Invoice-custom_location",
                 ),
             ]
         ],
