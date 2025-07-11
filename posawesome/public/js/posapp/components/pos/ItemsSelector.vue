@@ -1533,7 +1533,7 @@ async searchAndAddProductBundle(searchTerm) {
           frappe.db.get_value("Bin", {'item_code':item.item_code}, "valuation_rate")
             .then((r) => {
               if (r.message) {
-                item.last_incoming_rate = r.message.valuation_rate
+                item.last_incoming_rate = this.flt(r.message.valuation_rate, this.currency_precision);
               }
             });
             console.log(this.customer)
@@ -2031,12 +2031,18 @@ async searchAndAddProductBundle(searchTerm) {
           );
 
           if (filtred_list.length === 0) {
-            // Match by code or name containing the term
-            filtred_list = filtred_group_list.filter(item =>
-              item.item_code.toLowerCase().includes(term) ||
-              item.item_name.toLowerCase().includes(term)
-            );
-          }
+          // Match by code, name, OEM part number, or rack ID containing the term
+          filtred_list = filtred_group_list.filter(item => {
+            const matchesCode = item.item_code.toLowerCase().includes(term);
+            const matchesName = item.item_name.toLowerCase().includes(term);
+            const matchesOEM = item.custom_oem_part_number && 
+                              item.custom_oem_part_number.toLowerCase().includes(term);
+            const matchesRack = item.rack_id && 
+                               item.rack_id.toLowerCase().includes(term);
+            
+            return matchesCode || matchesName || matchesOEM || matchesRack;
+          });
+        }
 
           if (filtred_list.length === 0) {
             // Fallback to partial fuzzy match on name
