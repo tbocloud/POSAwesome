@@ -1,5 +1,6 @@
 <template>
   <div :style="responsiveStyles">
+    <CustomerValidationModal v-model="showCustomerValidation" />
     <v-card :class="['selection mx-auto my-0 py-0 mt-3 dynamic-card', isDarkTheme ? '' : 'bg-grey-lighten-5']"
       :style="{ height: responsiveStyles['--container-height'], maxHeight: responsiveStyles['--container-height'], backgroundColor: isDarkTheme ? '#121212' : '' }">
       <v-progress-linear :active="loading" :indeterminate="loading" absolute location="top"
@@ -178,6 +179,7 @@
 <script type="module">
 
 import format from "../../format";
+import CustomerValidationModal from './CustomerValidationModal.vue';
 import _ from "lodash";
 import CameraScanner from './CameraScanner.vue';
 import { saveItemUOMs, getItemUOMs, getLocalStock, isOffline, initializeStockCache, getItemsStorage, setItemsStorage, getLocalStockCache, setLocalStockCache, initPromise, getCachedPriceListItems, savePriceListItems, updateLocalStockCache, isStockCacheReady, getCachedItemDetails, saveItemDetailsCache } from '../../../offline/index.js';
@@ -186,6 +188,7 @@ import { responsiveMixin } from '../../mixins/responsive.js';
 export default {
   mixins: [format, responsiveMixin],
   components: {
+    CustomerValidationModal,
     CameraScanner,
   },
   data: () => ({
@@ -216,6 +219,7 @@ export default {
     itemDetailsRetryTimeout: null,
     items_loaded: false,
     selected_currency: "",
+    showCustomerValidation: false,
     exchange_rate: 1,
     prePopulateInProgress: false,
     itemWorker: null,
@@ -475,7 +479,7 @@ async searchAndAddProductBundle(searchTerm) {
           message: `Searching for: ${barcodeValue}`,
           indicator: 'blue'
         }, 2);
-      }
+    }
 
       if (this.pos_profile.custom_product_bundle) {
     console.log('Product bundle enabled, checking for bundles first...');
@@ -490,6 +494,10 @@ async searchAndAddProductBundle(searchTerm) {
       let foundItem = this.findItemByBarcode(barcodeValue);
 
       if (foundItem) {
+        if (!this.customer || this.customer === '' || this.customer === 'Walk-In Customer') {
+          this.showCustomerValidation = true;
+          return;
+        }
         console.log('Found item by exact barcode match:', foundItem);
         this.addItemFromSearch(foundItem, barcodeValue);
         return;
@@ -626,6 +634,10 @@ async searchAndAddProductBundle(searchTerm) {
     },
 
     addItemFromSearch(item, originalSearch) {
+      if (!this.customer || this.customer === '' || this.customer === 'Walk-In Customer') {
+        this.showCustomerValidation = true;
+        return; // Stop execution if no customer selected
+      }
       if (!item) return;
 
       // Clone the item to avoid modifying the original
@@ -1271,22 +1283,35 @@ async searchAndAddProductBundle(searchTerm) {
         { title: __("Avail.Qty"), key: "actual_qty", align: "start" },
         { title: __("UOM"), key: "stock_uom", align: "start" },
       ];  
+      if (this.pos_profile && this.pos_profile.custom_show_oem_part_number) {
       items_headers.push({
         title: __("OEM Part No"),
         align: "start",
         sortable: true,
         key: "custom_oem_part_number",
       });
+    }
       if (!this.pos_profile.posa_display_item_code) {
         items_headers.splice(1, 1);
       }
 
       return items_headers;
     },
+    onCustomerSelected(customer) {
+      this.customer = customer;
+      // Hide validation modal if it's showing
+      if (this.showCustomerValidation) {
+        this.showCustomerValidation = false;
+      }
+  },
     click_item_row(event, { item }) {
       this.add_item(item)
     },
     async add_item(item) {
+      if (!this.customer || this.customer === '' || this.customer === 'Walk-In Customer') {
+        this.showCustomerValidation = true;
+        return; 
+      }
       item = { ...item };
       if (item.has_variants) {
         this.eventBus.emit("open_variants_model", item, this.items);

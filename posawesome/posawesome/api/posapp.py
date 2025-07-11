@@ -910,6 +910,23 @@ def submit_invoice(invoice, data):
     else:
         invoice_doc = frappe.get_doc("Sales Invoice", invoice_name)
         invoice_doc.update(invoice)
+
+        if invoice.get("po_no"):
+            invoice_doc.po_no = invoice.get("po_no")
+        
+        if invoice.get("custom_location"):
+            invoice_doc.custom_location = invoice.get("custom_location")
+        
+        # Update reference details
+        if invoice.get("custom_reference_no"):
+            invoice_doc.custom_reference_no = invoice.get("custom_reference_no")
+        
+        if invoice.get("custom_reference_name"):
+            invoice_doc.custom_reference_name = invoice.get("custom_reference_name")
+
+    if invoice.get("posa_delivery_date"):
+        invoice_doc.update_stock = 0
+
     if invoice.get("posa_delivery_date"):
         invoice_doc.update_stock = 0
     mop_cash_list = [
@@ -932,6 +949,13 @@ def submit_invoice(invoice, data):
         if item.item_name and item.rate and item.qty:
             total = item.rate * item.qty
             items.append(f"{item.item_name} - Rate: {item.rate}, Qty: {item.qty}, Amount: {total}")
+
+    # Add customer PO details to remarks if available
+    if invoice_doc.po_no:
+        items.append(f"Customer PO: {invoice_doc.po_no}")
+    
+    if invoice_doc.custom_location:
+        items.append(f"Location: {invoice_doc.custom_location}")
     
     # Add the grand total at the end of remarks
     grand_total = f"\nGrand Total: {invoice_doc.grand_total}"
@@ -2805,3 +2829,113 @@ def get_last_customer_rate_value(customer, item_code):
     except Exception as e:
         frappe.log_error(f"Error getting last customer rate for {customer}, {item_code}: {str(e)}")
         return {"last_customer_rate": 0}
+    
+@frappe.whitelist()
+def update_invoice_with_customer_po(data):
+    """Update invoice with customer PO details and reference details"""
+    data = json.loads(data)
+    
+    if data.get("name"):
+        invoice_doc = frappe.get_doc("Sales Invoice", data.get("name"))
+        invoice_doc.update(data)
+    else:
+        invoice_doc = frappe.get_doc(data)
+
+    # Handle customer PO details
+    if data.get("po_no"):
+        invoice_doc.po_no = data.get("po_no")
+    
+    if data.get("custom_location"):
+        invoice_doc.custom_location = data.get("custom_location")
+    
+    # Handle reference details
+    if data.get("custom_reference_no"):
+        invoice_doc.custom_reference_no = data.get("custom_reference_no")
+    
+    if data.get("custom_reference_name"):
+        invoice_doc.custom_reference_name = data.get("custom_reference_name")
+
+    # Validate return items if this is a return invoice
+    if (data.get("is_return") or invoice_doc.is_return) and invoice_doc.get("return_against"):
+        validation = validate_return_items(invoice_doc.return_against, [d.as_dict() for d in invoice_doc.items])
+        if not validation.get("valid"):
+            frappe.throw(validation.get("message"))
+    
+    selected_currency = data.get("currency")
+    
+    # Set missing values first
+    invoice_doc.set_missing_values()
+    
+    # Ensure selected currency is preserved after set_missing_values
+    if selected_currency:
+        invoice_doc.currency = selected_currency
+        # Get default conversion rate from ERPNext if currency is different from company currency
+        if invoice_doc.currency != frappe.get_cached_value("Company", invoice_doc.company, "default_currency"):
+            company_currency = frappe.get_cached_value("Company", invoice_doc.company, "default_currency")
+
+            # Determine price list currency
+            price_list_currency = data.get("price_list_currency")
+            if not price_list_currency and invoice_doc.get("selling_price_list"):
+                price_list_currency = frappe.db.get_value(
+                    "Price List", invoice_doc.selling_price_list, "currency"
+                )
+            if not price_list_currency:
+                price_list_currency = company_currency
+
+            conversion_rate = 1
+            if invoice_doc.currency != company_currency:
+                conversion_rate = get_exchange_rate(
+                    invoice_doc.currency,
+                    company_currency,
+                    invoice_doc.posting_date,
+                )
+
+            plc_conversion_rate = 1
+            if price_list_currency != invoice_doc.currency:
+                plc_conversion_rate = get_exchange_rate(
+                    price_list_currency,
+                    invoice_doc.currency,
+                    invoice_doc.posting_date,
+                )
+
+            invoice_doc.conversion_rate = conversion_rate
+            invoice_doc.plc_conversion_rate = plc_conversion_rate
+            invoice_doc.price_list_currency = price_list_currency
+
+            # Update rates and amounts for all items using division
+            for item in invoice_doc.items:
+                if item.price_list_rate:
+                    item.base_price_list_rate = flt(
+                        item.price_list_rate * (conversion_rate / plc_conversion_rate),
+                        item.precision("base_price_list_rate"),
+                    )
+                if item.rate:
+                    item.base_rate = flt(item.rate * conversion_rate, item.precision("base_rate"))
+                if item.amount:
+                    item.base_amount = flt(item.amount * conversion_rate, item.precision("base_amount"))
+
+            # Update payment amounts
+            for payment in invoice_doc.payments:
+                payment.base_amount = flt(payment.amount * conversion_rate, payment.precision("base_amount"))
+
+            # Update invoice level amounts
+            invoice_doc.base_total = flt(invoice_doc.total * conversion_rate, invoice_doc.precision("base_total"))
+            invoice_doc.base_net_total = flt(invoice_doc.net_total * conversion_rate, invoice_doc.precision("base_net_total"))
+            invoice_doc.base_grand_total = flt(invoice_doc.grand_total * conversion_rate, invoice_doc.precision("base_grand_total"))
+            invoice_doc.base_rounded_total = flt(invoice_doc.rounded_total * conversion_rate, invoice_doc.precision("base_rounded_total"))
+            invoice_doc.base_in_words = money_in_words(invoice_doc.base_rounded_total, invoice_doc.company_currency)
+
+            # Update data to be sent back to frontend
+            data["conversion_rate"] = conversion_rate
+            data["plc_conversion_rate"] = plc_conversion_rate
+
+    invoice_doc.flags.ignore_permissions = True
+    frappe.flags.ignore_account_permission = True
+    invoice_doc.docstatus = 0
+    invoice_doc.save()
+
+    # Return both the invoice doc and the updated data
+    response = invoice_doc.as_dict()
+    response["conversion_rate"] = invoice_doc.conversion_rate
+    response["plc_conversion_rate"] = invoice_doc.plc_conversion_rate
+    return response

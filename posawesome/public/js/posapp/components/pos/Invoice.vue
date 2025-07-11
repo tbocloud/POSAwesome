@@ -74,6 +74,76 @@
       </v-card>
     </v-dialog>
 
+    <!-- Customer Purchase Order Details Dialog -->
+    <v-dialog v-model="customer_po_dialog" max-width="500" persistent>
+      <v-card>
+        <v-card-title class="text-h5 bg-secondary white--text">
+          <v-icon left color="white">mdi-file-purchase</v-icon>
+          {{ __("Customer Purchase Order Details") }}
+        </v-card-title>
+        
+        <v-card-text class="pt-6 pb-2">
+          <v-container>
+            <v-row>
+              <v-col cols="12">
+                <v-text-field
+                  v-model="customer_po_no"
+                  :label="__('Purchase Order Number')"
+                  variant="outlined"
+                  density="compact"
+                  color="secondary"
+                  prepend-inner-icon="mdi-file-document-outline"
+                  :rules="[v => !!v || __('Purchase Order Number is required')]"
+                  required
+                  hide-details="auto"
+                  autocomplete="off" 
+                  class="mb-3"
+                ></v-text-field>
+              </v-col>
+              
+              <v-col cols="12">
+                <v-text-field
+                  v-model="custom_location"
+                  :label="__('Custom Location')"
+                  variant="outlined"
+                  density="compact"
+                  color="secondary"
+                  prepend-inner-icon="mdi-map-marker"
+                  :rules="[v => !!v || __('Custom Location is required')]"
+                  required
+                  hide-details="auto"
+                  autocomplete="off" 
+                ></v-text-field>
+              </v-col>
+            </v-row>
+          </v-container>
+        </v-card-text>
+        <v-card-actions class="px-6 pb-4">
+          <v-spacer></v-spacer>
+          
+          <v-btn
+            color="grey"
+            variant="outlined"
+            @click="cancel_customer_po_dialog"
+            prepend-icon="mdi-close"
+          >
+            {{ __("Cancel") }}
+          </v-btn>
+          
+          <v-btn
+            color="secondary"
+            variant="elevated"
+            @click="confirm_customer_po_and_proceed"
+            prepend-icon="mdi-check"
+            :disabled="!customer_po_no || !custom_location"
+            class="ml-3"
+          >
+            {{ __("Confirm & Continue") }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Main Invoice Card (contains all invoice content) -->
     <v-card
       :style="{ height: 'var(--container-height)', maxHeight: 'var(--container-height)', backgroundColor: isDarkTheme ? '#121212' : '' }"
@@ -256,6 +326,9 @@ export default {
       reference_dialog: false, // Reference dialog visibility
       reference_no: '', // Reference number field
       reference_name: '', // Reference name field
+      customer_po_dialog: false, // Customer PO dialog visibility
+      customer_po_no: '', // Customer Purchase Order number
+      custom_location: '', // Custom location field
       float_precision: 6, // Float precision for calculations
       currency_precision: 6, // Currency precision for display
       new_line: false, // Add new line for item
@@ -318,6 +391,14 @@ export default {
         this.reference_dialog = true;
         return;
       }
+
+      if (this.pos_profile.custom_require_customer_po_details) {
+        console.log('Customer PO details required - showing dialog');
+        this.customer_po_no = '';
+        this.custom_location = '';
+        this.customer_po_dialog = true;
+        return;
+      }
   
       // If no reference required, proceed directly to payment
       this.process_payment();
@@ -344,6 +425,11 @@ export default {
         if (this.reference_no || this.reference_name) {
           invoice_doc.custom_reference_no = this.reference_no;
           invoice_doc.custom_reference_name = this.reference_name;
+        }
+
+        if (this.customer_po_no || this.custom_location) {
+          invoice_doc.po_no = this.customer_po_no;
+          invoice_doc.custom_location = this.custom_location;
         }
 
         // Update invoice_doc with current currency info
@@ -451,6 +537,42 @@ export default {
       this.reference_dialog = false;
       this.reference_no = '';
       this.reference_name = '';
+    },
+
+    async confirm_customer_po_and_proceed() {
+      try {
+        // Validate customer PO fields if required
+        if (this.pos_profile.custom_require_customer_po_details) {
+          if (!this.customer_po_no || !this.custom_location) {
+            this.eventBus.emit("show_message", {
+              title: __("Please fill in both Purchase Order Number and Custom Location"),
+              color: "error"
+            });
+            return;
+          }
+        }
+
+        // Close the customer PO dialog
+        this.customer_po_dialog = false;
+
+        // If only customer PO required, proceed with payment processing
+        await this.process_payment();
+
+      } catch (error) {
+        console.error('Error in confirm_customer_po_and_proceed:', error);
+        this.eventBus.emit("show_message", {
+          title: __("Error processing customer PO details"),
+          color: "error",
+          message: error.message
+        });
+      }
+    },
+
+    // Add this method to handle customer PO dialog cancellation
+    cancel_customer_po_dialog() {
+      this.customer_po_dialog = false;
+      this.customer_po_no = '';
+      this.custom_location = '';
     },
 
     initializeItemsHeaders() {
